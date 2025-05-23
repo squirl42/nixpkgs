@@ -200,8 +200,15 @@ let
     options = {
       publicKey = mkOption {
         example = "xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=";
-        type = types.str;
+        type = with types; nullOr str;
         description = "The base64 public key to the peer.";
+      };
+
+      publicKeyFile = mkOption {
+        example = "/public/wireguard_key";
+        type = with types; nullOr str;
+        default = null;
+        description = "A file containing the base64 public key to the peer.";
       };
 
       presharedKey = mkOption {
@@ -289,6 +296,9 @@ let
   generateUnit =
     name: values:
     assert assertMsg (
+      (values.publicKey != null) != (values.publicKeyFile != null)
+    ) "Only one of publicKey, configFile or publicKeyFile may be set";
+    assert assertMsg (
       values.configFile != null || ((values.privateKey != null) != (values.privateKeyFile != null))
     ) "Only one of privateKey, configFile or privateKeyFile may be set";
     assert assertMsg (
@@ -326,6 +336,8 @@ let
       preDownFile = if values.preDown != "" then writeScriptFile "preDown.sh" values.preDown else null;
       postDownFile =
         if values.postDown != "" then writeScriptFile "postDown.sh" values.postDown else null;
+      publicKey =
+        if values.publicKey != null then peer.publicKey else "cat ${peer.publicKeyFile}";
       configDir = pkgs.writeTextFile {
         name = "config-${name}";
         executable = false;
@@ -352,7 +364,7 @@ let
               !((peer.presharedKeyFile != null) && (peer.presharedKey != null))
             ) "Only one of presharedKey or presharedKeyFile may be set";
             "[Peer]\n"
-            + "PublicKey = ${peer.publicKey}\n"
+            + "PublicKey = ${publicKey}\n"
             + optionalString (peer.presharedKey != null) "PresharedKey = ${peer.presharedKey}\n"
             + optionalString (peer.endpoint != null) "Endpoint = ${peer.endpoint}\n"
             + optionalString (
